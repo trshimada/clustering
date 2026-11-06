@@ -194,108 +194,109 @@ class FluxEquilibriumClustering:
                     new_flux[j] += delta[i, idx]
             flux = new_flux
 
-        # Detect Sinks (nodes with outgoing flux < epsilon)
-        outgoing_flux_T = np.zeros(n)
-        for i in range(n):
-            for idx in range(effective_k):
-                outgoing_flux_T[i] += delta_T[i, idx]
+            # Detect Sinks (nodes with outgoing flux < epsilon)
+            outgoing_flux_T = np.zeros(n)
+            for i in range(n):
+                for idx in range(effective_k):
+                    outgoing_flux_T[i] += delta_T[i, idx]
 
-        sinks = np.zeros(n, dtype=int)
-        for i in range(n):
-            if outgoing_flux_T[i] < self.epsilon:
-                sinks[i] = 1
+            sinks = np.zeros(n, dtype=int)
+            for i in range(n):
+                if outgoing_flux_T[i] < self.epsilon:
+                    sinks[i] = 1
 
-        # If no sinks are found, pick the node closest to the centroid
-        sink_indices = []
-        for i in range(n):
-            if sinks[i] == 1:
-                sink_indices.append(i)
+            # If no sinks are found, pick the node closest to the centroid
+            sink_indices = []
+            for i in range(n):
+                if sinks[i] == 1:
+                    sink_indices.append(i)
 
-                if len(sink_indices) == 0:
-                    closest_idx = int(np.argmin(d))
-                    sinks[closest_idx] = 1
-                    sink_indices = [closest_idx]
+            # THIS CHECK AND EVERYTHING BELOW MUST BE UNINDENTED OUTSIDE THE LOOP:
+            if len(sink_indices) == 0:
+                closest_idx = int(np.argmin(d))
+                sinks[closest_idx] = 1
+                sink_indices = [closest_idx]
 
-                # Assign Clusters
-                labels = -np.ones(n, dtype=int)
-                for cluster_id, sink_node in enumerate(sink_indices):
-                    labels[sink_node] = cluster_id
+            # Assign Clusters
+            labels = -np.ones(n, dtype=int)
+            for cluster_id, sink_node in enumerate(sink_indices):
+                labels[sink_node] = cluster_id
 
-                for i in range(n):
-                    if labels[i] != -1:
-                        continue
+            for i in range(n):
+                if labels[i] != -1:
+                    continue
 
-                    current = i
-                    path = [current]
-                    visited = {current}
+                current = i
+                path = [current]
+                visited = {current}
 
-                    while labels[current] == -1:
-                        best_j = -1
-                        max_delta = -1.0
+                while labels[current] == -1:
+                    best_j = -1
+                    max_delta = -1.0
 
-                        for idx in range(effective_k):
-                            j = neighbor_indices[current, idx]
-                            if d[j] <= d[current] + tau:
-                                if delta_T[current, idx] > max_delta:
-                                    max_delta = delta_T[current, idx]
-                                    best_j = j
+                    for idx in range(effective_k):
+                        j = neighbor_indices[current, idx]
+                        if d[j] <= d[current] + tau:
+                            if delta_T[current, idx] > max_delta:
+                                max_delta = delta_T[current, idx]
+                                best_j = j
 
-                        # If no downhill neighbor or zero delta, break and make new sink/cluster
-                        if best_j == -1 or max_delta == 0:
-                            new_cluster_id = len(sink_indices)
-                            labels[current] = new_cluster_id
-                            break
+                    # If no downhill neighbor or zero delta, break and make new sink/cluster
+                    if best_j == -1 or max_delta == 0:
+                        new_cluster_id = len(sink_indices)
+                        labels[current] = new_cluster_id
+                        break
 
-                        # If we visit a node twice, break cycle
-                        if best_j in visited:
-                            new_cluster_id = len(sink_indices)
-                            labels[current] = new_cluster_id
-                            break
+                    # If we visit a node twice, break cycle
+                    if best_j in visited:
+                        new_cluster_id = len(sink_indices)
+                        labels[current] = new_cluster_id
+                        break
 
-                        current = best_j
-                        path.append(current)
-                        visited.add(current)
+                    current = best_j
+                    path.append(current)
+                    visited.add(current)
 
-                        if labels[current] != -1:
-                            term_label = labels[current]
-                            for node in path:
-                                labels[node] = term_label
-                            break
+                    if labels[current] != -1:
+                        term_label = labels[current]
+                        for node in path:
+                            labels[node] = term_label
+                        break
 
-                    term_label = labels[current]
-                    for node in path:
-                        labels[node] = term_label
+                term_label = labels[current]
+                for node in path:
+                    labels[node] = term_label
 
-                # Small cluster merging
-                s_min = max(2, n // 20)
-                unique_labels = np.unique(labels)
+            # Small cluster merging
+            s_min = max(2, n // 20)
+            unique_labels = np.unique(labels)
 
-                cluster_sizes = {}
-                for lbl in unique_labels:
-                    cluster_sizes[lbl] = np.sum(labels == lbl)
+            cluster_sizes = {}
+            for lbl in unique_labels:
+                cluster_sizes[lbl] = np.sum(labels == lbl)
 
-                small_clusters = [lbl for lbl, size in cluster_sizes.items() if size < s_min]
-                large_clusters = [lbl for lbl, size in cluster_sizes.items() if size >= s_min]
+            small_clusters = [lbl for lbl, size in cluster_sizes.items() if size < s_min]
+            large_clusters = [lbl for lbl, size in cluster_sizes.items() if size >= s_min]
 
-                if len(large_clusters) > 0:
-                    for small_lbl in small_clusters:
-                        # Compute centroid of the small cluster
-                        small_points = X[labels == small_lbl]
-                        mu_small = small_points.mean(axis=0)
+            if len(large_clusters) > 0:
+                for small_lbl in small_clusters:
+                    # Compute centroid of the small cluster
+                    small_points = X[labels == small_lbl]
+                    mu_small = small_points.mean(axis=0)
 
-                        best_large_lbl = large_clusters[0]
-                        min_dist = np.inf
+                    best_large_lbl = large_clusters[0]
+                    min_dist = np.inf
 
-                        for large_lbl in large_clusters:
-                            large_points = X[labels == large_lbl]
-                            mu_large = large_points.mean(axis=0)
-                            dist_centroids = np.linalg.norm(mu_small - mu_large)
-                            if dist_centroids < min_dist:
-                                min_dist = dist_centroids
-                                best_large_lbl = large_lbl
+                    for large_lbl in large_clusters:
+                        large_points = X[labels == large_lbl]
+                        mu_large = large_points.mean(axis=0)
+                        dist_centroids = np.linalg.norm(mu_small - mu_large)
+                        if dist_centroids < min_dist:
+                            min_dist = dist_centroids
+                            best_large_lbl = large_lbl
 
-                        # Merge small cluster into the nearest large cluster
-                        labels[labels == small_lbl] = best_large_lbl
+                    # Merge small cluster into the nearest large cluster
+                    labels[labels == small_lbl] = best_large_lbl
 
         # ---- DO NOT CHANGE THE REST OF THIS METHOD ---- #
         # We require you maintain these attributes for testing purpose.
